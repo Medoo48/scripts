@@ -1,0 +1,23 @@
+#!/bin/sh
+
+n=0
+maxjobs=5
+
+echo "running"
+
+for arg in "$@"
+do
+	if [[ $arg != *.mp3 ]]
+	then
+		RHVoice-test -q max -p marianna+slt -R 48000 -i $arg -o "$arg.mp3" &
+
+		# limit jobs
+		if (( $(($((++n)) % $maxjobs)) == 0 )) ; then
+			wait # wait until all have finished (not optimal, but most times good enough)
+			echo "done [$n:$#]"
+		fi
+	fi
+done
+wait
+echo "finish"
+

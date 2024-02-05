@@ -1,0 +1,17 @@
+#!/bin/sh
+
+if [ $# -eq 0 ]; then
+	for arg in $(ls | sort -n)
+	do
+		echo -e "\n\n" >> all.txt
+		cat $arg >> all.txt
+	done
+
+else
+	for arg in "$@"
+	do
+		echo -e "\n\n" >> all.txt
+		cat $arg >> all.txt
+	done
+
+fi
