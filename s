@@ -4,6 +4,8 @@ ext="tr.txt"
 
 for arg in "$@"
 do
+	if [[ $arg == *.$ext ]]; then continue; fi
+
 	if [ ! -f "$arg.$ext" ] || [ $(wc -c < "$arg.$ext") -eq 0 ]
 	then
 		deepl --to uk --timeout=20000 -f $arg > $arg.$ext 2> /dev/null

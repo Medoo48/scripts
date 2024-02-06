@@ -1,8 +1,12 @@
 #!/bin/sh
 
+ext="tr.txt"
+
 for arg in "$@"
 do
-	trans -b -no-warn -t uk -show-alternatives n -show-dictionary n -show-prompt-message n -i $arg -o "$arg.tr.txt"
+	if [[ $arg == *.$ext ]]; then continue; fi
+
+	trans -b -no-warn -t uk -show-alternatives n -show-dictionary n -show-prompt-message n -i $arg -o "$arg.$ext"
 	echo "done $arg"
 	sleep 1
 done
