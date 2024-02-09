@@ -11,83 +11,89 @@
 
 int  from_chapter         = 1;	   // Який номер дати першому збереженому файлу
 int  split_length         = 5000;  // Скільки символів мають містити поділені файли
+int  file_num             = 1;	   // Номер першого файлу коли зберігаємо ділянки файлів
 
-bool replace_words        = false; // Чи треба робити заміну слів. -r
-bool split_text           = false; // Чи треба ділити розділ на ділянки певної відстані. -t
-bool split_text_to_files  = false; // Чи треба нарізати файли за розміром. -T
-bool split_text_by_length = false; // Чи треба ділити текст за розміром і копіювати в буфер обміну. -E
-bool clipboard_split_copy = false; // Чи треба копіювати текст файлу в буфер обміну. -e
-bool fix_endings          = false; // Чи треба виправляти закінчення речень. -d
-bool repare_structure     = false; // Чи треба виправляти структуру тексту. -D
-bool fix_begin		  = false; // Чи треба виправляти початок тексту. -b
+enum what_to_do {
+    NONE = 0,
+    REPLACE_WORDS,                        // виконати заміну слів. -r
+    SPLIT_TEXT,                           // поділити розділ на ділянки певної відстані. -t
+    SPLIT_TEXT_TO_FILES,                  // нарізати розділ на файли відповідного розміру. -T
+    CLIPBOARD_COPY_SPLIT_TEXT_BY_LENGTH,  // поділити текст за розміром і копіювати в буфер обміну. -E
+    CLIPBOARD_COPY_SPLIT,                 // копіювати текст файлу в буфер обміну. -e
+    FIX_ENDINGS,                          // виправити закінчення речень. -d
+    REPARE_STRUCTURE,                     // виправити структуру тексту. -D
+    FIX_BEGIN,                            // виправити початок тексту. -b
+};
 
 std::string chapter_delimeter = "\nРозділ ";
 
 const std::string wl_copy  = "wl-copy ";
 const std::string wl_paste = "wl-paste ";
 
-void save_to_file(int index, std::string_view str){
+std::string str = "";
+
+int arg = 0;
+
+
+void save_to_file(std::string_view fname, std::string &what){
     std::ofstream file;
-    file.open(std::to_string(index), std::ofstream::binary | std::ofstream::out);
-    file.write(str.data(), str.length());
+    file.open(std::string("res/" + std::string(fname)).data(), std::ofstream::binary | std::ofstream::out);
+    file.write(what.data(), what.length());
     file.flush();
     file.close();
 }
 
-void save_to_file(std::string_view fname, std::string_view str){
-    std::ofstream file;
-    file.open(fname.data(), std::ofstream::binary | std::ofstream::out);
-    file.write(str.data(), str.length());
-    file.flush();
-    file.close();
+void save_to_file(int index, std::string &what){
+    save_to_file(std::to_string(index), what);
 }
 
-void read_file(std::string_view fname, std::string &str){
+void read_file(std::string_view fname, std::string &res){
     std::ifstream file;
     file.open(fname.data(), std::ifstream::in);
     file.seekg (0, file.end);
 
     int length = file.tellg();
-    if(length == 0){ file.close(); return; }
+    if(length == 0){ file.close(); res = ""; return; }
 
-    str.resize(length);
+    res.resize(length);
 
     file.seekg (0, file.beg);
-    file.read(str.data(), length);
+    file.read(res.data(), length);
     file.close();
 }
 
-std::vector<std::string> split(const std::string& str, const std::string& delim){
+std::vector<std::string> split(const std::string& data, const std::string& delim){
     std::vector<std::string> result;
     size_t start = 0;
-    for (size_t found = str.find(delim); found != std::string::npos; found = str.find(delim, start)){
-        result.emplace_back(str.begin() + start - delim.size() - 1, str.begin() + found);
+    for (size_t found = data.find(delim); found != std::string::npos; found = data.find(delim, start)){
+        result.emplace_back(data.begin() + start - delim.size() - 1, data.begin() + found);
         start = found + delim.size();
     }
-    if (start != str.size())
-        result.emplace_back(str.begin() + start - delim.size(), str.end());
+    if (start != data.size())
+        result.emplace_back(data.begin() + start - delim.size(), data.end());
 
     return result;
 }
 
-std::vector<std::string> split_by_length(const std::string& str, int length){
+//поділ розділу на ділянки за кількостю символів
+std::vector<std::string> split_by_length(const std::string& data){
     std::vector<std::string> result;
     size_t start = 0;
 
-    for(size_t index = 0; index + length < str.length(); ){//поділ розділу на ділянки за кількостю
-            index += length;
+    for(size_t index = 0; index + split_length < data.length(); ){
+        index += split_length;
 
-            index = str.rfind('\n', index);
-            if(index == std::string::npos) break;
-		
+        index = data.rfind('\n', index);
+        if(index == std::string::npos) break;
 
-	    if(result.size() == 50) break;
-            result.emplace_back(str.begin() + start, str.begin() + index);
-            start = index;
+        //if(result.size() == 50) break;
+
+        result.emplace_back(data.begin() + start, data.begin() + index);
+        start = index;
     }
 
-    if (start != str.size())
-        result.emplace_back(str.begin() + start, str.end());
+    if (start != data.size())
+        result.emplace_back(data.begin() + start, data.end());
     return result;
 }
 
@@ -103,19 +109,123 @@ void exec_cmd(const char* cmd, std::string &result) {
     }
 }
 
-static void replaceAll(std::string& data, const std::string_view& from, const std::string_view& to){
+inline void replaceAll(std::string& data, const std::string_view& from, const std::string_view& to){
     for(size_t pos = 0; (pos = data.find(from, pos)) != std::string::npos; pos += to.size())
         data.replace(pos, from.size(), to);
 }
 
-void fix_structure(std::string &str){
-    std::string result;
+inline void task_split_text(char** argv){
+    for(size_t index = 0; index + split_length < str.length(); ){
+        index += split_length;
+
+        index = str.rfind('\n', index);
+        if(index == std::string::npos) break;
+
+        str.insert(index, 1, '\n');
+    }
+
+    save_to_file(std::string(argv[arg]), str);
+}
+
+inline void task_split_text_to_files(){
+	auto lines = split_by_length(str);
+
+	for(auto item : lines){
+		save_to_file(file_num++, item);
+	}
+}
+
+inline void task_clipboard_copy(char** argv, int argc, what_to_do how){
+    replaceAll(str, "\"", "\\\"");
+    replaceAll(str, "'", "\'");
+    replaceAll(str, "`", "\\`");
+
+    auto v = how == what_to_do::CLIPBOARD_COPY_SPLIT ?
+                                split(str, chapter_delimeter) :
+                                split_by_length(str);
+
+    int index = 0;
+    std::string c = " ";
+    str = "";
+
+    bool copy = false, rerun = false;
+    while(index < v.size()){
+        if(copy){
+            exec_cmd(wl_paste.data(), str);
+            copy = false;
+        }
+
+        std::system(std::string(wl_copy + "\"" + v.at(index) + "\"").c_str());
+
+        std::cout << argv[arg] << " [" << index + 1 << ":" << v.size() << "]";
+
+        std::getline(std::cin, c);
+        if(c == "/"){//Переміщення по розділам
+            if(index != 0) index--;//переміщення по розділу
+            else if(arg >= 2) { arg -= 2; rerun = true; str = ""; break; }//повернення до попереднього розділу
+        }
+        else if(c.length() == 0) { index++; c = " "; }
+        else continue;
+
+        copy = true;
+    }
+    std::cout << std::endl;
+    if(!rerun){
+        if(copy) exec_cmd(wl_paste.data(), str);
+
+        save_to_file(std::string(argv[arg]), str);
+    }
+}
+
+inline void task_replace(char** argv){
+    //str.erase(remove_if(str.begin(), str.end(), [](char c){ return !((c >= 'а' && c <= 'я') || (c >= 'a' && c <= 'z') || (c >= 0 && c <= 128));}), str.end());
+
+    std::string replace = "";
+    read_file("replace.txt", replace);
+
+    std::istringstream iss(replace);
+
+    for (std::string line; std::getline(iss, line); ){
+        auto v = split(line, "|||");
+        if(v.size() != 2){
+            std::cout << "bad replace pattern [" << line << "]" << std::endl;
+            continue;
+        }
+
+        replaceAll(str, v.at(0), v.at(1));
+
+        save_to_file(std::string(argv[arg]) + "_mod", str);
+    }
+}
+
+inline void task_fix_endings(){
+    for(size_t index = 0; index < str.length(); index++){//fix ending
+            index = str.find('\n', index);
+
+            if(index == std::string::npos) break;
+
+            auto c = str.at(--index);
+
+            if(c == '.' || c == '?' || c == '!'){ index += 2; continue; }// "**" **.
+
+            if((c >= 'a' && c <= 'z') || c == ',' /*|| c == '"'*/ || (c >= 'а' && c <= 'я') ){//**c\nc**
+                str[index + 1] = ' ';
+                index += 1;
+                continue;
+            }
+            else index++;
+    }
+}
+
+inline void task_repare_structure(){
+    //fix_structure(str);
+   /* std::string result;
 
     std::istringstream iss(str);
 
     for (std::string line; std::getline(iss, line); )
     {
-
+*/
 
         /*
          *
@@ -140,7 +250,7 @@ void fix_structure(std::string &str){
     while ( str_i < end );
 
         */
-
+/*
         auto count = std::count(line.begin(), line.end(), '"');
 
         bool find_opened = false;
@@ -150,6 +260,7 @@ void fix_structure(std::string &str){
                 line[index] = ' ';
                 line.insert(index, s);
         };
+        */
 /*
         std::cout << "co[" << count_o << "] cc[" << count_c << "]" << std::endl;
 
@@ -174,7 +285,7 @@ void fix_structure(std::string &str){
 
 
 
-
+/*
         if(count == 2 && line[0] == '"'){//звичайне речення "say it."
             change(0, "— ");
             replaceAll(line, "\"", "");
@@ -260,86 +371,13 @@ void fix_structure(std::string &str){
         result += line + "\n";
     }
     str = result;
+
+    save_to_file(std::string(argv[arg]) + std::string("_mod"), str);
+
+    */
 }
 
-void fix_strings_ending(std::string &str){
-	if(fix_endings){
-		for(size_t index = 0; index < str.length(); index++){//fix ending
-      			index = str.find('\n', index);
-
-      			if(index == std::string::npos) break;
-
-     			auto c = str.at(--index);
-
-                if(c == '.' || c == '?' || c == '!'){ index += 2; continue; }// "**" **.
-
-     			if((c >= 'a' && c <= 'z') || c == ',' /*|| c == '"'*/ || (c >= 'а' && c <= 'я') ){//**c\nc**
-				str[index + 1] = ' ';
-				index += 1;
-				continue;
-			}
-   		  	else index++;
-		}
-    }
-
-    if(split_text){//поділ розділу на ділянки
-        for(size_t index = 0; index + split_length < str.length(); ){
-            index += split_length;
-
-            index = str.rfind('\n', index);
-            if(index == std::string::npos) break;
-
-            str.insert(index, 1, '\n');
-        }
-    }
-}
-
-int main(int argc, char** argv){
-    if(argc < 2){
-        std::cerr << "usage: fix [-rtTdDe] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
-        return 1;
-    }
-
-    if(!std::filesystem::exists("res/")) std::filesystem::create_directory("res");
-
-    for(int arg = 1; arg < argc; arg++){
-	if(std::filesystem::is_directory(argv[arg])) continue;
-
-        if (argc >= 3){
-            if(std::string("-n") == argv[arg]){ split_length      = std::atoi(argv[arg + 1]);   arg++; continue; }
-            if(std::string("-c") == argv[arg]){ from_chapter      = std::atoi(argv[arg + 1]);   arg++; continue; }
-            if(std::string("-C") == argv[arg]){
-                chapter_delimeter = std::string(argv[arg + 1]);
-                replaceAll(chapter_delimeter, "\\n", "\n"); replaceAll(chapter_delimeter, "\\r", "\r");
-                arg++; continue;
-            }
-        }
-
-        if     (std::string("-r") == argv[arg]){ replace_words        = true;  continue; }
-        if     (std::string("-t") == argv[arg]){ split_text           = true;  continue; }
-        if     (std::string("-T") == argv[arg]){ split_text_to_files  = true;  continue; }
-        if     (std::string("-e") == argv[arg]){ clipboard_split_copy = true;  continue; }
-        if     (std::string("-E") == argv[arg]){ split_text_by_length = clipboard_split_copy = true;  continue; }
-        if     (std::string("-d") == argv[arg]){ fix_endings          = true; continue; }
-        if     (std::string("-D") == argv[arg]){ repare_structure     = true;  continue; }
-        if     (std::string("-b") == argv[arg]){ fix_begin	      = true;  continue; }
-
-        if(!std::filesystem::exists(argv[arg])){
-                std::cerr << "file [" << argv[arg] << "] not exist, skip" << std::endl;
-                continue;
-        }
-
-        std::string str = "";
-        read_file(argv[arg], str);
-
-        if(str.length() == 0){
-            std::cerr << "file [" << argv[arg] << "] is empty, skip" << std::endl;
-            continue;
-        }
-
-
-
-   if(fix_begin){
+inline void task_fix_begin(char** argv){
     //    replaceAll(str, "\n\n", "");
 
 	auto remove = [&](int index, int count = 1){
@@ -355,127 +393,118 @@ int main(int argc, char** argv){
 	//	change(15, '.');
 	remove(0);
 /*
-            index = str.find('\n', index);
-            if(index == std::string::npos)
-            {
-                std::cout << "bad file[" << argv[arg] << "]" << std::endl;
+
+*/
+    save_to_file(std::string(argv[arg]), str);
+}
+
+
+int main(int argc, char** argv){
+    if(argc < 2){
+        std::cerr << "usage: fix [-rtTdDeEb] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
+        return 1;
+    }
+
+    if(!std::filesystem::exists("res/")) std::filesystem::create_directory("res");
+
+    what_to_do task = what_to_do::NONE;
+    for(arg = 1; arg < argc; arg++){
+        if(std::filesystem::is_directory(argv[arg])) continue;
+
+        if (argc >= 3){
+            if(std::string("-n") == argv[arg]){
+                split_length = std::atoi(argv[arg + 1]);
+                arg++;
+                if(split_length < 1000)
+                    std :: cout << "Warning! Smalll split distance may loop forewer, incrise by -n num, current distance [" << split_length << "]" << std::endl;
                 continue;
             }
-            const char *dell = "\n \n";
-            str.insert(index, 1, *dell);
-*/
-            save_to_file("res/" + std::string(argv[arg]), str);
-
-    }
-else
-        if(replace_words){
-            //str.erase(remove_if(str.begin(), str.end(), [](char c){ return !((c >= 'а' && c <= 'я') || (c >= 'a' && c <= 'z') || (c >= 0 && c <= 128));}), str.end());
-
-       		std::string replace = "";
-	        read_file("replace.txt", replace);
-
-            auto v = split(replace, "|||");
-	
-	        for(int i = 0; i < v.size(); i += 2){
-                replaceAll(str, v.at(i), v.at(i + 1));
-	        }
-            save_to_file("res/" + std::string(argv[arg]) + std::string("_mod"), str);
-	}
-else if(repare_structure){
-        fix_structure(str);
-
-        save_to_file("res/" + std::string(argv[arg]) + std::string("_mod"), str);
-}
-else if(split_text_to_files){
-	int  file_num = 1;
-   //	fix_strings_ending(str);
-	std::vector<std::string> lines = split_by_length(str, split_length);
-
-	for(auto item : lines){
-		save_to_file("res/" + std::to_string(file_num++), item);
-	}
-
-	continue;
-}
-else if(clipboard_split_copy){
-
-   		replaceAll(str, "\"", "\\\"");
-		replaceAll(str, "'", "\'");
-		replaceAll(str, "`", "\\`");
-
-    	//	fix_strings_ending(str);
-
-   		std::vector<std::string> v;
-		if(split_text_by_length)
-			v = split_by_length(str, split_length);
-		else
-			v = split(str, chapter_delimeter);
-
-   		int index = 0;
-		std::string s = " ";
-       		str = "";
-
-		bool copy = false, rerun = false;
-		while(index < v.size()){
-			if(copy){
-				exec_cmd(wl_paste.data(), str);
-				copy = false;
-			}
-
-			std::system(std::string(wl_copy + "\"" + v.at(index) + "\"").c_str());
-
-			std::cout << argv[arg] << " [" << index + 1 << ":" << v.size() << "]";
-
-			std::getline(std::cin, s);
-			if(s == "/"){//Переміщення по розділам
-                if(index != 0) index--;//переміщення по розділу
-                else if(arg >= 2) { arg -= 2; rerun = true; str = ""; break; }//повернення до попереднього розділу
+            if(std::string("-c") == argv[arg]){ from_chapter = std::atoi(argv[arg + 1]); arg++; continue; }
+            if(std::string("-C") == argv[arg]){
+                chapter_delimeter = std::string(argv[arg + 1]);
+                replaceAll(chapter_delimeter, "\\n", "\n"); replaceAll(chapter_delimeter, "\\r", "\r");
+                arg++; continue;
             }
-			else if(s.length() == 0) { index++; s = " "; }
-			else continue;
-
-			copy = true;
-		}
-		std::cout << std::endl;
-        if(!rerun){
-            if(copy) exec_cmd(wl_paste.data(), str);
-
-            save_to_file("res/" + std::string(argv[arg]), str);
         }
-}
-else{//поділ роздлів тексту на файли
-    // fix_strings_ending(str);
-    auto v = split(str, chapter_delimeter);
 
-    for(auto item : v){
-        save_to_file("res/" + std::to_string(from_chapter++), item);
-    }
-}
+        if(std::string("-r") == argv[arg]){ task = what_to_do::REPLACE_WORDS;                       continue; }
+        if(std::string("-t") == argv[arg]){ task = what_to_do::SPLIT_TEXT;                          continue; }
+        if(std::string("-T") == argv[arg]){ task = what_to_do::SPLIT_TEXT_TO_FILES;                 continue; }
+        if(std::string("-e") == argv[arg]){ task = what_to_do::CLIPBOARD_COPY_SPLIT;                continue; }
+        if(std::string("-E") == argv[arg]){ task = what_to_do::CLIPBOARD_COPY_SPLIT_TEXT_BY_LENGTH; continue; }
+        if(std::string("-d") == argv[arg]){ task = what_to_do::FIX_ENDINGS;                         continue; }
+        if(std::string("-D") == argv[arg]){ task = what_to_do::REPARE_STRUCTURE;                    continue; }
+        if(std::string("-b") == argv[arg]){ task = what_to_do::FIX_BEGIN;                           continue; }
 
-// 	replaceAll(str, "”", "\"");
- //	replaceAll(str, "“", "\"");
-       // replaceAll(str, ". ", ".");
-/*        replaceAll(str, ", ", ",");
-        replaceAll(str, " \"", "\"");
-        replaceAll(str, "\" ", "\"");
-        replaceAll(str, "' ", "'");
-        replaceAll(str, ": ", ":");
-        replaceAll(str, "; ", ";");
-        replaceAll(str, "? ", "?");
-        replaceAll(str, "! ", "!");
-        replaceAll(str, "  ", " ");
-        replaceAll(str, "  ", " ");
-        replaceAll(str, "  ", " ");*/
-//        replaceAll(str, "”", "");
-//        replaceAll(str, "’", "'");
-//        replaceAll(str, "‘", "'");
-//        replaceAll(str, "“", "");
-//        replaceAll(str, "−", "");
-//        replaceAll(str, "—", "");
-//        replaceAll(str, "“", "");
+        if(!std::filesystem::exists(argv[arg])){
+                std::cerr << "file [" << argv[arg] << "] not exist, skip" << std::endl;
+                continue;
+        }
+
+        read_file(argv[arg], str);
+
+        if(str.length() == 0){
+            std::cerr << "file [" << argv[arg] << "] is empty, skip" << std::endl;
+            continue;
+        }
+
+        switch(task){
+            case REPLACE_WORDS: // заміна слів
+            { task_replace(argv); break; }
+
+            case SPLIT_TEXT: // поділ розділу на ділянки
+            { task_split_text(argv); break; }
+
+            case SPLIT_TEXT_TO_FILES: // поділ файлів за кількістю символів
+            { task_split_text_to_files(); break; }
+
+            case CLIPBOARD_COPY_SPLIT_TEXT_BY_LENGTH: // поділити файл і додати до буфіру обміну
+            { task_clipboard_copy(argv, argc, CLIPBOARD_COPY_SPLIT_TEXT_BY_LENGTH); break; }
+
+            case CLIPBOARD_COPY_SPLIT: // додати текст до буфіру обміну
+            { task_clipboard_copy(argv, argc, CLIPBOARD_COPY_SPLIT); break; }
+
+            case  FIX_ENDINGS: // виправити закінчення
+            { task_fix_endings(); break; }
+
+            case  REPARE_STRUCTURE: // виправити структуру файлу
+            { task_repare_structure(); break; }
+
+            case FIX_BEGIN: // виправити текст за шаблоном
+            { task_fix_begin(argv); break; }
+
+            default: { // поділ тексту на файли за ключовим словом
+                auto v = split(str, chapter_delimeter);
+
+                for(auto item : v){
+                    save_to_file(from_chapter++, item);
+                }
+            }
+        }
+
+/* 	replaceAll(str, {"”", "\"" },
+        { "“", "\""} ,
+        { ". ", "." },
+        { ", ", "," },
+        { " \"", "\"" },
+        { "\" ", "\"" },
+        { "' ", "'" },
+        { ": ", ":" },
+        { "; ", ";" },
+        { "? ", "?" },
+        { "! ", "!" },
+        { "  ", " " },
+        { "  ", " " },
+        { "  ", " " },
+        { "”", "" },
+        { "’", "'" },
+        { "‘", "'" },
+        { "“", "" },
+        { "−", "" },
+        { "—", "" },
+        { "“", "" });
+*/
 
     }
     return 0;
 }
-
-
