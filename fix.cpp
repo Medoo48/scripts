@@ -27,8 +27,18 @@ enum what_to_do {
 
 std::string chapter_delimeter = "\nРозділ ";
 
-const std::string wl_copy  = "wl-copy ";
-const std::string wl_paste = "wl-paste ";
+#ifdef __linux__ 
+    const std::string wl_copy  = "wl-copy ";
+    const std::string wl_paste = "wl-paste ";
+#elif __APPLE__
+    const std::string mac_copy  = "pbcopy";
+    const std::string mac_paste = "pbpaste";
+#elif _WIN32
+    #include <windows.h>
+    #include <conio.h>
+#else
+#error Схоже ваша операційна система не підтримується, зверніться до автора програми за допомогою
+#endif
 
 std::string str = "";
 
@@ -96,19 +106,19 @@ std::vector<std::string> split_by_length(const std::string& data){
         result.emplace_back(data.begin() + start, data.end());
     return result;
 }
-
+#if defined(__linux__) || defined(__APPLE__)
 void exec_cmd(const char* cmd, std::string &result) {
     std::array<char, 128> buffer;
     std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd, "r"), pclose);
     if (!pipe) {
-	    result = "popen() failed!";
-	    return;
+        result = "popen() failed!";
+        return;
     }
     while (fgets(buffer.data(), buffer.size(), pipe.get()) != nullptr) {
         result += buffer.data();
     }
 }
-
+#endif
 inline void replaceAll(std::string& data, const std::string_view& from, const std::string_view& to){
     for(size_t pos = 0; (pos = data.find(from, pos)) != std::string::npos; pos += to.size())
         data.replace(pos, from.size(), to);
@@ -135,6 +145,40 @@ inline void task_split_text_to_files(){
 	}
 }
 
+void clipboard_set_text(const std::string *text){
+#ifdef __linux__
+        std::system(std::string(wl_copy + "\"" + *text + "\"").c_str());
+#elif __APPLE__
+        std::system(std::string(mac_copy + "\"" + *text + "\"").c_str());
+#elif _WIN32
+    OpenClitboard(0);
+    EmptyClipboard();
+    HGLOBAL h = GlobalAlloc(GMEM_MOVEABLE, text->length());
+    if(!h) { CloseClipboard(); }
+    memcpy(GlobalLock(h), text->c_str(), text->length());
+    GlobalUnlock(h);
+    SetClipboardData(CF_TEXT, h);
+    CloseClipboard();
+    GlobalFree(h)
+#else
+#error Схоже ваша операційна система не підтримується, зверніться до автора програми за допомогою
+#endif
+}
+
+void clipboard_get_text(std::string &result){
+#ifdef __linux__
+    exec_cmd(wl_paste.data(), str);
+#elif __APPLE__
+    exec_cmd(mac_paste.data(), str);
+#elif _WIN32
+    OpenClitboard(0);
+    HANDLE in = GetClipboardData(CF_TEXT);
+    result += std::string((char *)in);
+#else
+#error Схоже ваша операційна система не підтримується, зверніться до автора програми за допомогою
+#endif
+}
+
 inline void task_clipboard_copy(char** argv, int argc, what_to_do how){
     replaceAll(str, "\"", "\\\"");
     replaceAll(str, "'", "\'");
@@ -151,11 +195,11 @@ inline void task_clipboard_copy(char** argv, int argc, what_to_do how){
     bool copy = false, rerun = false;
     while(index < v.size()){
         if(copy){
-            exec_cmd(wl_paste.data(), str);
+            clipboard_get_text(str);
             copy = false;
         }
 
-        std::system(std::string(wl_copy + "\"" + v.at(index) + "\"").c_str());
+        clipboard_set_text(&v.at(index));
 
         std::cout << argv[arg] << " [" << index + 1 << ":" << v.size() << "]";
 
@@ -169,9 +213,9 @@ inline void task_clipboard_copy(char** argv, int argc, what_to_do how){
 
         copy = true;
     }
-    std::cout << std::endl;
+    std::cout << "arg [" << arg << "/" << argc << "], type '/' for going to previous chapter" << std::endl;
     if(!rerun){
-        if(copy) exec_cmd(wl_paste.data(), str);
+        if(copy) clipboard_get_text(str);
 
         save_to_file(std::string(argv[arg]), str);
     }
@@ -194,8 +238,9 @@ inline void task_replace(char** argv){
 
         replaceAll(str, v.at(0), v.at(1));
 
-        save_to_file(std::string(argv[arg]) + "_mod", str);
     }
+
+    save_to_file(std::string(argv[arg]) + "_mod", str);
 }
 
 inline void task_fix_endings(){
@@ -464,10 +509,10 @@ int main(int argc, char** argv){
             case CLIPBOARD_COPY_SPLIT: // додати текст до буфіру обміну
             { task_clipboard_copy(argv, argc, CLIPBOARD_COPY_SPLIT); break; }
 
-            case  FIX_ENDINGS: // виправити закінчення
+            case FIX_ENDINGS: // виправити закінчення
             { task_fix_endings(); break; }
 
-            case  REPARE_STRUCTURE: // виправити структуру файлу
+            case REPARE_STRUCTURE: // виправити структуру файлу
             { task_repare_structure(); break; }
 
             case FIX_BEGIN: // виправити текст за шаблоном
