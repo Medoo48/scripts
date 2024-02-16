@@ -9,9 +9,8 @@
 #include <array>
 #include <locale>
 
-int  from_chapter         = 1;	   // Який номер дати першому збереженому файлу
-int  split_length         = 5000;  // Скільки символів мають містити поділені файли
-int  file_num             = 1;	   // Номер першого файлу коли зберігаємо ділянки файлів
+int  split_length = 5000;  // Скільки символів мають містити поділені файли
+int  file_num     = 1;	   // Номер першого файлу коли зберігаємо результат
 
 enum what_to_do {
     NONE = 0,
@@ -167,9 +166,9 @@ void clipboard_set_text(const std::string *text){
 
 void clipboard_get_text(std::string &result){
 #ifdef __linux__
-    exec_cmd(wl_paste.data(), str);
+    exec_cmd(wl_paste.data(), result);
 #elif __APPLE__
-    exec_cmd(mac_paste.data(), str);
+    exec_cmd(mac_paste.data(), result);
 #elif _WIN32
     OpenClitboard(0);
     HANDLE in = GetClipboardData(CF_TEXT);
@@ -464,7 +463,7 @@ int main(int argc, char** argv){
                     std :: cout << "Warning! Smalll split distance may loop forewer, incrise by -n num, current distance [" << split_length << "]" << std::endl;
                 continue;
             }
-            if(std::string("-c") == argv[arg]){ from_chapter = std::atoi(argv[arg + 1]); arg++; continue; }
+            if(std::string("-c") == argv[arg]){ file_num = std::atoi(argv[arg + 1]); arg++; continue; }
             if(std::string("-C") == argv[arg]){
                 chapter_delimeter = std::string(argv[arg + 1]);
                 replaceAll(chapter_delimeter, "\\n", "\n"); replaceAll(chapter_delimeter, "\\r", "\r");
@@ -522,7 +521,7 @@ int main(int argc, char** argv){
                 auto v = split(str, chapter_delimeter);
 
                 for(auto item : v){
-                    save_to_file(from_chapter++, item);
+                    save_to_file(file_num++, item);
                 }
             }
         }
