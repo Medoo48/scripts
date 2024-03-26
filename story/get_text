@@ -1,0 +1,8 @@
+#!/bin/sh
+
+for arg in "$@"
+do
+	mutool convert -o "$arg.text.txt" $arg &
+done
+wait
+echo "finish"
