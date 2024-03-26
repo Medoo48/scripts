@@ -31,7 +31,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -r|--repeat)
       repeat=1
-      if [ $count -eq 0]; then
+      if [ $count -eq 0 ]; then
 	count=2
       fi
       shift # past argument
