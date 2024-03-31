@@ -1,0 +1,95 @@
+#!/bin/sh
+
+mkdir res 2>/dev/null
+
+# Перетворити JSON-файл на звичайний текст
+if [ $1 == 'json' ]; then
+	shift #json
+	for arg in "$@"
+	do
+                text=$(cat "$arg" | perl -pe "s/\(\[\n\|\"\n  }\n\]\|  {\n.*\": \"\|\"\n  },\)//g")
+		echo "$text" > res/$arg.text.txt
+	done
+	exit 0
+fi
+
+#Загальні регулярні вирази заміни тексту для всіх творів
+#На https://regexr.com/ можна зручно їх проєктувати/перевіряти
+patterns=(
+		'\(^\.\.\)\. -/, —' 
+                ', -/, —'
+                ' - / — '
+                '^ -/—'
+		'^ —/—'
+		'^" /— '
+		'^"/— '
+                '^-/—'
+                ': - /, — '
+                ': -/, — '
+		'\(: —\)\(\w\)/\1 \2'
+		': —/, — '
+		': "/, —'
+                ' "/ «'
+		'\." /, — '
+                '"/»'
+                ' — $/'
+                '‘/«'
+                '’/»'
+		'» —/, —'
+		'\. «/. — '
+		'»$/'
+		'—  /— '
+		'»\./.'
+		'\?,/?'
+		'\?\./?'
+		'\?»/?'
+		'!,/!'
+		'!»/!'
+		'\.,/,'
+		'»,/,'
+		'\.»/.'
+                '…/...'
+#		'\.,/..'
+		#'\n\n/\n'
+                '^\(Розділ.*\)\(\n\)/\r\1\r\r'
+                '^\(Розділ \)\(\d*\)\(:\)/\1\2.' 
+)
+
+# Не використовувати загальні регулярні вирази
+if [ $1 == '-c' ]; then
+	shift
+	patterns=()
+fi
+
+# Додаткові правила заміни окремого твору
+# На кожному рядку регулярний вираз
+cin_path=''
+
+if [ -f 'cin.txt' ]; then
+	cin_path='./cin.txt'
+elif [ -f '../cin.txt' ]; then
+	cin_path='../cin.txt'
+fi
+
+if [ -n $cin_path ]; then
+	while IFS="" read -r exp
+	do
+		if [ -z "$exp" ]; then
+			continue
+		fi
+
+		patterns+=("$exp")
+	done < $cin_path
+fi
+
+# Заміна тексту у файлах використовуючи регулярні вирази
+for arg in "$@"
+do
+	text=$(cat $arg)
+
+        for exp in "${patterns[@]}"; do
+                text=$(echo "$text" | perl -pe "s/$exp/g")
+        done
+        echo "$text" > res/$arg
+done
+
