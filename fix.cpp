@@ -2,7 +2,6 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
-#include <sstream>
 #include <vector>
 #include <array>
 
@@ -11,14 +10,11 @@ int  file_num     = 1;	   // Номер першого файлу коли зб�
 
 enum what_to_do {
     NONE = 0,
-    REPLACE_WORDS,                        // виконати заміну слів. -r
     SPLIT_TEXT,                           // поділити розділ на ділянки певної відстані. -t
     SPLIT_TEXT_TO_FILES,                  // нарізати розділ на файли відповідного розміру. -T
     CLIPBOARD_COPY_SPLIT_TEXT_BY_LENGTH,  // поділити текст за розміром і копіювати в буфер обміну. -E
     CLIPBOARD_COPY_SPLIT,                 // копіювати текст файлу в буфер обміну. -e
     FIX_ENDINGS,                          // виправити закінчення речень. -d
-    REPARE_STRUCTURE,                     // виправити структуру тексту. -D
-    FIX_BEGIN,                            // виправити початок тексту. -b
 };
 
 std::string chapter_delimeter = "\nРозділ ";
@@ -220,28 +216,6 @@ inline void task_clipboard_copy(char** argv, int argc, what_to_do how){
     }
 }
 
-inline void task_replace(char** argv){
-    //str.erase(remove_if(str.begin(), str.end(), [](char c){ return !((c >= 'а' && c <= 'я') || (c >= 'a' && c <= 'z') || (c >= 0 && c <= 128));}), str.end());
-
-    std::string replace = "";
-    read_file("replace.txt", replace);
-
-    std::istringstream iss(replace);
-
-    for (std::string line; std::getline(iss, line); ){
-        auto v = split(line, "|||");
-        if(v.size() != 2){
-            std::cout << "bad replace pattern [" << line << "]" << std::endl;
-            continue;
-        }
-
-        replaceAll(str, v.at(0), v.at(1));
-
-    }
-
-    save_to_file(std::string(argv[arg]) + "_mod", str);
-}
-
 inline void task_fix_endings(){
     for(size_t index = 0; index < str.length(); index++){//fix ending
             index = str.find('\n', index);
@@ -263,7 +237,7 @@ inline void task_fix_endings(){
 
 int main(int argc, char** argv){
     if(argc < 2){
-        std::cerr << "usage: fix [-rtTdeE] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
+        std::cerr << "usage: fix [-tTdeE] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
         return 1;
     }
 
@@ -289,7 +263,6 @@ int main(int argc, char** argv){
             }
         }
 
-        if(std::string("-r") == argv[arg]){ task = what_to_do::REPLACE_WORDS;                       continue; }
         if(std::string("-t") == argv[arg]){ task = what_to_do::SPLIT_TEXT;                          continue; }
         if(std::string("-T") == argv[arg]){ task = what_to_do::SPLIT_TEXT_TO_FILES;                 continue; }
         if(std::string("-e") == argv[arg]){ task = what_to_do::CLIPBOARD_COPY_SPLIT;                continue; }
@@ -309,9 +282,6 @@ int main(int argc, char** argv){
         }
 
         switch(task){
-            case REPLACE_WORDS: // заміна слів
-            { task_replace(argv); break; }
-
             case SPLIT_TEXT: // поділ розділу на ділянки
             { task_split_text(argv); break; }
 
@@ -335,30 +305,6 @@ int main(int argc, char** argv){
                 }
             }
         }
-
-/* 	replaceAll(str, {"”", "\"" },
-        { "“", "\""} ,
-        { ". ", "." },
-        { ", ", "," },
-        { " \"", "\"" },
-        { "\" ", "\"" },
-        { "' ", "'" },
-        { ": ", ":" },
-        { "; ", ";" },
-        { "? ", "?" },
-        { "! ", "!" },
-        { "  ", " " },
-        { "  ", " " },
-        { "  ", " " },
-        { "”", "" },
-        { "’", "'" },
-        { "‘", "'" },
-        { "“", "" },
-        { "−", "" },
-        { "—", "" },
-        { "“", "" });
-*/
-
     }
     return 0;
 }
