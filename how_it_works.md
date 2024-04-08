@@ -1,7 +1,7 @@
 # Як ці скрипти працюють разом
 
 1. отримуємо англійський текст ранобе за допомогою скрипту [lightnovelworld_text](https://github.com/Medoo48/scripts/blob/main/lightnovelworld_text.automa.json) для додатка [Automa](https://www.automa.site/)
-2. виправляємо JSON-файл за допомогою скрипту [chg](https://github.com/Medoo48/scripts/blob/main/chg_usage.md) отримуючи англійський текст - `chg json chapters1_645.json`. Або скористайтесь текстовим редактором з підтримкою заміни за регулярним виразом `/\(\[\n\|"\n  }\n\]\|  {\n.*": "\|"\n  },\)//g`
+2. виправляємо JSON-файл за допомогою скрипту [chg](https://github.com/Medoo48/scripts/blob/main/chg_usage.md) отримуючи англійський текст - `chg json chapters1_645.json`
 3. ділимо[^1] великий файл з англійськими розділами на окремі за допомогою програми [fix](https://github.com/Medoo48/scripts/blob/main/fix_usage.md) - `fix -n 1500 -T chapters1_645.json.text.txt`
 4. перекладаємо усі файли за допомогою скрипту `s` - `s -c 1 -r -S 90 $(ls | sort -n)`
 5. обʼєднуємо[^2] перекладені файли в один за допомогою скрипту `concat`, отримуємо файл `all.txt`
