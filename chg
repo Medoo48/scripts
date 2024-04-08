@@ -7,7 +7,18 @@ if [ $1 == 'json' ]; then
 	shift #json
 	for arg in "$@"
 	do
-                text=$(cat "$arg" | perl -pe "s/\(\[\n\|\"\n  }\n\]\|  {\n.*\": \"\|\"\n  },\)//g")
+		text=$(cat $arg)
+		
+                text=$(echo "$text" | sed -E "s/^.*: \"//g")
+                text=$(echo "$text" | sed -E "s/^  \{//g")
+                text=$(echo "$text" | sed -E "s/^  },//g")
+                text=$(echo "$text" | sed -E "s/^  }//g")
+                text=$(echo "$text" | sed -E "s/^\[//g")
+                text=$(echo "$text" | sed -E "s/^]//g")
+                text=$(echo "$text" | sed -E "s/\"$//g")
+
+		text=$(echo "$text" | sed -E -z 's/\n+/\n/g')
+
 		echo "$text" > res/$arg.text.txt
 	done
 	exit 0
@@ -15,28 +26,34 @@ fi
 
 #Загальні регулярні вирази заміни тексту для всіх творів
 #На https://regexr.com/ можна зручно їх проєктувати/перевіряти
-patterns=(
-		'\(^\.\.\)\. -/, —' 
+patterns=(	
                 ', -/, —'
                 ' - / — '
-                '^ -/—'
-		'^ —/—'
-		'^" /— '
-		'^"/— '
+		'(^\.\.)\. -/, —'
+		'^ -/—'
+                '^ —/—'
+                '^" /— '
+                '^“/— '
+		'“/— '
+		'”/'
+                '^"/— '
                 '^-/—'
                 ': - /, — '
                 ': -/, — '
-		'\(: —\)\(\w\)/\1 \2'
+		': —(\w)/, — \1'
 		': —/, — '
-		': "/, —'
+		': "/, — '
+		': «/, — '
                 ' "/ «'
 		'\." /, — '
                 '"/»'
                 ' — $/'
                 '‘/«'
-                '’/»'
+                '[^a-zA-Zа-яА-я]’/»'
 		'» —/, —'
 		'\. «/. — '
+		' «\./.'
+		'«\./.'
 		'»$/'
 		'—  /— '
 		'»\./.'
@@ -47,12 +64,13 @@ patterns=(
 		'!»/!'
 		'\.,/,'
 		'»,/,'
-		'\.»/.'
+#		'\.»/.'
                 '…/...'
-#		'\.,/..'
-		#'\n\n/\n'
-                '^\(Розділ.*\)\(\n\)/\r\1\r\r'
-                '^\(Розділ \)\(\d*\)\(:\)/\1\2.' 
+		'и і /и й ' # допомагати і підтримувати -> допомагати й підтримувати
+		'і і /і й '
+		' в (.в)/ у \1'
+                '(Розділ [0-9]+.*):/\1.'
+                '(Розділ.*)/\n\1\n'
 )
 
 # Не використовувати загальні регулярні вирази
@@ -60,6 +78,11 @@ if [ $1 == '-c' ]; then
 	shift
 	patterns=()
 fi
+
+
+multi_line_patterns=(	
+		'\n+/\n'
+	)
 
 # Додаткові правила заміни окремого твору
 # На кожному рядку регулярний вираз
@@ -71,7 +94,7 @@ elif [ -f '../cin.txt' ]; then
 	cin_path='../cin.txt'
 fi
 
-if [ -n $cin_path ]; then
+if [ -n "$cin_path" ]; then
 	while IFS="" read -r exp
 	do
 		if [ -z "$exp" ]; then
@@ -86,10 +109,15 @@ fi
 for arg in "$@"
 do
 	text=$(cat $arg)
+	
+	for exp in "${multi_line_patterns[@]}"; do
+                text=$(echo "$text" | sed -E -z "s/$exp/g")
+        done
 
         for exp in "${patterns[@]}"; do
-                text=$(echo "$text" | perl -pe "s/$exp/g")
+                text=$(echo "$text" | sed -E "s/$exp/g")
         done
+
         echo "$text" > res/$arg
 done
 
