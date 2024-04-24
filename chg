@@ -130,7 +130,7 @@ do
 	text=$(cat $arg)
 	
 	for exp in "${multi_line_patterns[@]}"; do
-                text=$(sed -E -z "s/$exp/g" <<< "text")
+                text=$(sed -E -z "s/$exp/g" <<< "$text")
         done
 
 	text=$(sed -E "$chg_exp" <<< "$text")
