@@ -110,14 +110,13 @@ do
 			((++done_total))
 		
 			if [ $exit_count -gt 0 ] && [ $exit_count -eq $done_total ]; then
-				echo -ne "\rsleep $delay seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total]"
+				echo -ne "\rsleep $delay seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 				echo -e "\nexit after $exit_count done files"
 				exit 0
 			fi
 
 			is_last_failed=0
 		else
-			echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]"
 			((++failed))
 
 			if [ $exit_after_failed -gt 0 ]; then
@@ -128,24 +127,28 @@ do
 				fi
 
 				if [ $exit_after_failed -eq $last_failed ]; then
-					echo -e "\nexit after [$exit_after_failed] failed translation"
+					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]\nexit after [$exit_after_failed] failed translation"
 					exit 0
+				else
+					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]"
 				fi
 
 				is_last_failed=1
+			else
+				echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]"
 			fi
 		fi
 	
 		((++done))
 		if [ $count -ne 0 ]; then
 			if [ "$done" -lt "$count" ]; then
-				echo -ne "\rsleep $delay seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total]"
+				echo -ne "\rsleep $delay seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 
 				sleep $delay
 			else
 				if [ "$repeat" -eq 1 ]; then
 					done=0
-					echo -ne "\rsleep $delay_after seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total]"
+					echo -ne "\rsleep $delay_after seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 
 					sleep $delay_after
 				else
@@ -155,7 +158,7 @@ do
 			continue
 		fi
 		
-		echo -ne "\rsleep $delay sendond [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total]"
+		echo -ne "\rsleep $delay sendond [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 		sleep $delay
 	fi
 done
