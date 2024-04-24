@@ -7,17 +7,15 @@ if [ $1 == 'json' ]; then
 	shift #json
 	for arg in "$@"
 	do
-		text=$(cat $arg)
-		
-                text=$(echo "$text" | sed -E "s/^.*: \"//g")
-                text=$(echo "$text" | sed -E "s/^  \{//g")
-                text=$(echo "$text" | sed -E "s/^  },//g")
-                text=$(echo "$text" | sed -E "s/^  }//g")
-                text=$(echo "$text" | sed -E "s/^\[//g")
-                text=$(echo "$text" | sed -E "s/^]//g")
-                text=$(echo "$text" | sed -E "s/\"$//g")
+                text=$(cat $arg | sed -E "s/^.*: \"//g;
+					  s/^  \{//g;
+					  s/^  },//g;
+			  		  s/^  }//g;
+					  s/^\[//g;
+					  s/^]//g;
+					  s/\"$//g")
 
-		text=$(echo "$text" | sed -E -z 's/\n+/\n/g')
+		text=$(sed -E -z 's/\n+/\n/g' <<< "$text")
 
 		echo "$text" > res/$arg.text.txt
 	done
@@ -52,7 +50,7 @@ patterns=(
                 ' — $/'
                 '‘/«'
                 '[^a-zA-Zа-яА-я]’/»'
-		'» —/, —'
+		#'» —/, —'
 		'\. «/. — '
 		' «\./.'
 		'«\./.'
@@ -66,16 +64,23 @@ patterns=(
 		'!»/!'
 		'\.,/,'
 		'»,/,'
+		'— —/—'
+		',(\w)/, \1'
 		'—(\w)/— \1'
-#		'\.»/.'
-                '…/...'
+		'(\w)\s{2,}(\w)/\1 \2'
+		'(«\w+\b)([^»])?/\1»\2'
+		'(«[а-яА-Яa-zA-Z]+)\b —/\1»'
+		'«([а-яА-Яa-zA-Z]+)\b([.,?!])/\1\2'
+		' ([A-ZА-Яa-zа-я]+)(-Сіті|-місто)/ місто \1'
 
 		'и і /и й ' # допомагати і підтримувати -> допомагати й підтримувати
 		'і і /і й '
-		'(а|о|у|е|и|і) і (а|о|у|е|и|і)/\1 й \2'
-		'й (й|ї|є|я|ю)/і \1'
+		'(а|я|о|у|ю|е|є|и|і|ї) і (а|я|о|у|ю|е|є|и|і|ї)/\1 й \2'
+	#	'й (й|ї|є|я|ю)/і \1'
 		' в (.в)/ у \1'
 		'ы/и'
+
+                '…/...'
 
                 '(Розділ [0-9]+.*):/\1.'
                 '(Розділ.*)/\n\1\n'
@@ -125,10 +130,10 @@ do
 	text=$(cat $arg)
 	
 	for exp in "${multi_line_patterns[@]}"; do
-                text=$(echo "$text" | sed -E -z "s/$exp/g")
+                text=$(sed -E -z "s/$exp/g" <<< "text")
         done
 
-	text=$(echo "$text" | sed -E "$chg_exp")
+	text=$(sed -E "$chg_exp" <<< "$text")
 	
         echo "$text" > res/$arg
 done
