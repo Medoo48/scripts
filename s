@@ -3,31 +3,36 @@
 done=0
 done_total=0
 failed=0
-count=0
+
 delay=5
 delay_after=120
-timeout=60000
-repeat=0
+translation_timeout=60000
+try_again_after=3600
+
+count=0
 exit_count=0
 exit_after_failed=0
+last_failed_count=0
 
-is_last_failed=0
-last_failed=0
-
+is_try_again=0
+is_retry_on_failed=0
+is_repeat=0
 
 ext="tr.txt"
 
 args=()
 
 show_help(){
-      echo -e "usege: s [-rh] [-c count] [-C exit_count] [-e failed_count] [-s delay] [-S dalay_after] [-t timeout] files
+      echo -e "usege: s [-rhE] [-c count] [-C exit_count] [-e failed_count] [-s delay] [-S dalay_after] [-t timeout] [-T retry_after] files
 \t-c, --count\tПерекласти вказану кількість файлів. З -r скрипт перекладатиме вказаними порціями
 \t-C, --exit-count\tЗавершити виконання після перекладу n-файлів
 \t-e, --exit-after-failed\tЗавершити виконання після n-послідовних помилок
+\t-E, --try-again\tПісля виникнення послідовних помилок перекладу зачекати 3600с(змінити чере -T) і спробувати ще раз, якщо знову невдало, то завершити виконання. Якщо кількість помилок не вказана, то 1 за замовчуванням. Якщо кількість файлів не вказана використовується 1 за замовчуванням
 \t-r, --repeat\tПерекласти порцію файлів, почекати 120с(змінити через -S) щоб запобігти бану й перейти до наступної порції. Якщо кількість файлів не вказана використовується 1 за замовчуванням
-\t-s, --sleep\tЗасинати на вказану кількість секунд після перекладу файлу. 5с за замовчуванням
-\t-S, --sleep-after\tЗасинати на вказану кількість секунд після перекладу порції файлів. 120с за замовчуванням
+\t-s, --sleep\tЗасинати на вказану кількість секунд після перекладу файлу. 5 секунд за замовчуванням
+\t-S, --sleep-after\tЗасинати на вказану кількість секунд після перекладу порції файлів. 120 секунд за замовчуванням
 \t-t, --timeout\tСкільки чекати на результат перекладу. 60 секунд за замовчуванням
+\t-T, --try-again-after\tНа скільки секунд засинати перед повторною спробою перекладу після послідовних помилок які мали спричинити завершення виконання. 3600 секунд за замовчуванням. Не рекомендовано вказувати менш ніж годину(3600с), бо отримаєте повноцінний бан, а не обмеження на кількість перекладів
 \t-h, --help\tПоказати цю довідку і завершити роботу"
 }
 
@@ -53,6 +58,18 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -E|--try-again)
+      is_try_again=1
+      if [ $exit_after_failed -eq 0 ]; then
+	exit_after_failed=1
+      fi
+
+      if [ $count -eq 0 ]; then
+	count=1
+      fi
+
+      shift # past value
+      ;;
     -s|--sleep)
       delay="$2"
       shift # past argument
@@ -64,12 +81,17 @@ while [[ $# -gt 0 ]]; do
       shift # past value
       ;;
     -t|--timeout)
-      timeout=$(($2 * 1000))
+      translation_timeout=$(($2 * 1000))
+      shift # past argument
+      shift # past value
+      ;;
+    -T|--try-again-after)
+      try_again_after=$2
       shift # past argument
       shift # past value
       ;;
     -r|--repeat)
-      repeat=1
+      is_repeat=1
       if [ $count -eq 0 ]; then
 	count=1
       fi
@@ -104,7 +126,7 @@ do
 			echo "file [$arg] too long, skip, 1500 chars max for DeepL Translator. Use: fix -n 1500 -T file"
 			continue
 		fi
-		deepl --to uk --timeout=$timeout -f $arg > $arg.$ext 2> /dev/null
+		deepl --to uk --timeout=$translation_timeout -f $arg > $arg.$ext 2> /dev/null
 		if [ $? -eq 0 ]
 		then
 			((++done_total))
@@ -115,25 +137,33 @@ do
 				exit 0
 			fi
 
-			is_last_failed=0
+			last_failed_count=0
+			is_retry_on_failed=0
 		else
 			((++failed))
 
 			if [ $exit_after_failed -gt 0 ]; then
-				if [ $is_last_failed -eq 0 ]; then
-					last_failed=1
-				else
-					((++last_failed))
+				if [ $is_retry_on_failed -eq 1 ]; then
+					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F') retry failed, exit"
+					exit 2
 				fi
 
-				if [ $exit_after_failed -eq $last_failed ]; then
-					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]\nexit after [$exit_after_failed] failed translation"
-					exit 0
+				((++last_failed_count))
+
+				if [ $exit_after_failed -eq $last_failed_count ]; then
+					if [ $is_try_again -eq 1 ]; then
+						echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')] sleep $try_again_after seconds, then try again or exit"
+						sleep $try_again_after
+
+						is_retry_on_failed=1
+						continue
+					else
+						echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]\nexit after [$exit_after_failed] failed translation"
+						exit 1
+					fi
 				else
 					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]"
 				fi
-
-				is_last_failed=1
 			else
 				echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')]"
 			fi
@@ -146,7 +176,7 @@ do
 
 				sleep $delay
 			else
-				if [ "$repeat" -eq 1 ]; then
+				if [ "$is_repeat" -eq 1 ]; then
 					done=0
 					echo -ne "\rsleep $delay_after seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 
@@ -158,7 +188,7 @@ do
 			continue
 		fi
 		
-		echo -ne "\rsleep $delay sendond [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
+		echo -ne "\rsleep $delay second [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 		sleep $delay
 	fi
 done
