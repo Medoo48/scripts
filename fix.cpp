@@ -69,6 +69,9 @@ std::vector<std::string> split(const std::string& data, const std::string& delim
 
     size_t last = 0;
     size_t found = 0;
+
+    while(data.at(last) == '\n') last++;
+
     while ((found = data.find(delim, last)) != std::string::npos) {
         result.emplace_back(data.substr(last, found - last));
         last = found + 1;
