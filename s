@@ -126,6 +126,12 @@ do
 			echo "file [$arg] too long, skip, 1500 chars max for DeepL Translator. Use: fix -n 1500 -T file"
 			continue
 		fi
+
+		if [ $(stat -c %s "$arg") -eq 0 ]; then
+			echo "file [$arg] is empty, skip"
+			continue
+		fi
+
 		deepl --to uk --timeout=$translation_timeout -f $arg > $arg.$ext 2> /dev/null
 		if [ $? -eq 0 ]
 		then
