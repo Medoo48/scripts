@@ -16,7 +16,9 @@ last_failed_count=0
 
 is_try_again=0
 is_retry_on_failed=0
+
 is_repeat=0
+is_repeat_on_failed=0
 
 ext="tr.txt"
 
@@ -29,6 +31,7 @@ show_help(){
 \t-e, --exit-after-failed\tЗавершити виконання після n-послідовних помилок
 \t-E, --try-again\tПісля виникнення послідовних помилок перекладу зачекати 3600с(змінити чере -T) і спробувати ще раз, якщо знову невдало, то завершити виконання. Якщо кількість помилок не вказана, то 1 за замовчуванням. Якщо кількість файлів не вказана використовується 1 за замовчуванням
 \t-r, --repeat\tПерекласти порцію файлів, почекати 120с(змінити через -S) щоб запобігти бану й перейти до наступної порції. Якщо кількість файлів не вказана використовується 1 за замовчуванням
+\t-R, --repeat-on-failed\tТеж що й -r з -E, але не завершує виконання скрипта
 \t-s, --sleep\tЗасинати на вказану кількість секунд після перекладу файлу. 5 секунд за замовчуванням
 \t-S, --sleep-after\tЗасинати на вказану кількість секунд після перекладу порції файлів. 120 секунд за замовчуванням
 \t-t, --timeout\tСкільки чекати на результат перекладу. 60 секунд за замовчуванням
@@ -97,6 +100,19 @@ while [[ $# -gt 0 ]]; do
       fi
       shift # past argument
       ;;
+    -R|--repeat-on-failed)
+      is_repeat=1
+      is_try_again=1
+      is_repeat_on_failed=1
+      if [ $exit_after_failed -eq 0 ]; then
+	exit_after_failed=1
+      fi
+
+      if [ $count -eq 0 ]; then
+	count=1
+      fi
+      shift # past argument
+      ;;
     -h|--help)
       show_help;
       exit 0
@@ -134,9 +150,9 @@ do
 
 		deepl --to uk --timeout=$translation_timeout -f $arg > $arg.$ext 2> /dev/null
 		if [ $? -eq 0 ]
+		#if ((1 + $RANDOM % 10 > 3)); # для тестів
 		then
 			((++done_total))
-		
 			if [ $exit_count -gt 0 ] && [ $exit_count -eq $done_total ]; then
 				echo -ne "\rsleep $delay seconds [$(date +'%R %F')] [done $done_total] [$failed failed] [$# total] [$(date -u -d @"$SECONDS" +'%-Hh %-Mm %-Ss') elapsed]"
 				echo -e "\nexit after $exit_count done files"
@@ -150,15 +166,24 @@ do
 
 			if [ $exit_after_failed -gt 0 ]; then
 				if [ $is_retry_on_failed -eq 1 ]; then
-					echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F') retry failed, exit"
-					exit 2
+					if [ $is_repeat_on_failed -eq 1 ]; then
+						echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')] sleep $try_again_after seconds, then try again"
+						sleep $try_again_after
+					else
+						echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F') retry failed, exit"
+						exit 2
+					fi
 				fi
 
 				((++last_failed_count))
 
 				if [ $exit_after_failed -eq $last_failed_count ]; then
 					if [ $is_try_again -eq 1 ]; then
-						echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')] sleep $try_again_after seconds, then try again or exit"
+						if [ $is_repeat_on_failed -eq 1 ]; then
+							echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')] sleep $try_again_after seconds, then try again"
+						else
+							echo -e "\033[2K\rfailed [$arg] at [$(date +'%R %F')] sleep $try_again_after seconds, then try again or exit"
+						fi
 						sleep $try_again_after
 
 						is_retry_on_failed=1
