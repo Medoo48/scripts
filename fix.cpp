@@ -2,11 +2,15 @@
 #include <fstream>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <array>
 
 int  split_length = 5000;  // Скільки символів мають містити поділені файли
 int  file_num     = 1;	   // Номер першого файлу коли зберігаємо результат
+bool add_file_ext = true;
+std::string file_ext = ".txt";
+
 
 enum what_to_do {
     NONE = 0,
@@ -36,10 +40,15 @@ std::string str = "";
 
 int arg = 0;
 
+bool ends_with(std::string_view str, std::string_view suffix)
+{
+    return str.size() >= suffix.size() && str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
 
 void save_to_file(std::string_view fname, std::string &what){
     std::ofstream file;
-    file.open(std::string("res/" + std::string(fname)).data(), std::ofstream::binary | std::ofstream::out);
+    std::string file_name = "res/" + std::string(fname) + (add_file_ext && !ends_with(fname, file_ext) ? file_ext : "");
+    file.open(file_name.data(), std::ofstream::binary | std::ofstream::out);
     file.write(what.data(), what.length());
     file.flush();
     file.close();
@@ -240,7 +249,7 @@ inline void task_fix_endings(){
 
 int main(int argc, char** argv){
     if(argc < 2){
-        std::cerr << "usage: fix [-tTdeE] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
+        std::cerr << "usage: fix [-adeEtT] [-n length] [-c chapter] [-C delimeter] file ..." << std::endl;
         return 1;
     }
 
@@ -258,6 +267,7 @@ int main(int argc, char** argv){
                     std :: cout << "Warning! Smalll split distance may loop forewer, incrise by -n num, current distance [" << split_length << "]" << std::endl;
                 continue;
             }
+            if(std::string("-a") == argv[arg]){ file_ext = argv[arg + 1]; arg++; continue; }
             if(std::string("-c") == argv[arg]){ file_num = std::atoi(argv[arg + 1]); arg++; continue; }
             if(std::string("-C") == argv[arg]){
                 chapter_delimeter = std::string(argv[arg + 1]);
@@ -265,6 +275,7 @@ int main(int argc, char** argv){
                 arg++; continue;
             }
         }
+        if(std::string("-A") == argv[arg]){ add_file_ext = false; continue; }
 
         if(std::string("-t") == argv[arg]){ task = what_to_do::SPLIT_TEXT;                          continue; }
         if(std::string("-T") == argv[arg]){ task = what_to_do::SPLIT_TEXT_TO_FILES;                 continue; }
