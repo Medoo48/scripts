@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -37,6 +38,8 @@ std::string chapter_delimeter = "\nРозділ ";
 #endif
 
 std::string str = "";
+
+std::string_view current_file;
 
 int arg = 0;
 
@@ -103,7 +106,23 @@ std::vector<std::string> split_by_length(const std::string& data){
         index = data.rfind('\n', index);
         if(index == std::string::npos) break;
 
-        //if(result.size() == 50) break;
+        if(index == start){
+            std::cout << "lines in [" << current_file << "] to long, fix them by adding '\\n' and label [#not new line]" << std::endl;
+            
+            int line_length = data.find('\n', start + 1);
+            while (line_length > split_length) {
+                index = data.rfind('.', start + split_length);
+
+                std::string edited_line(data.begin() + start, data.begin() + index + 1);
+                edited_line += "[#not new line]\n";
+
+                result.emplace_back(edited_line);
+                start = index;
+                line_length = data.find('\n', start) - start;
+            }
+
+            continue;
+        }
 
         result.emplace_back(data.begin() + start, data.begin() + index);
         start = index;
@@ -294,6 +313,8 @@ int main(int argc, char** argv){
             std::cerr << "file [" << argv[arg] << "] is empty, skip" << std::endl;
             continue;
         }
+
+        current_file = argv[arg];
 
         switch(task){
             case SPLIT_TEXT: // поділ розділу на ділянки
