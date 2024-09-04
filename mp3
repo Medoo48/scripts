@@ -1,23 +1,76 @@
 #!/bin/sh
 
 n=0
+done=0
+count=0
 maxjobs=5
+
+args=()
+
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -c|--count)
+      count="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -j|--jobs)
+      maxjobs="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      args+=("$1") # save positional arg
+      shift # past argument
+      ;;
+  esac
+done
+
+set -- "${args[@]}" # restore positional parameters
+
+arg=""
+do_mp3(){
+	if [[ $arg == *.mp3 ]]; then continue; fi
+
+	if [ $(stat -c %s "$arg") -eq 0 ]; then
+        	echo "file [$arg] is empty, skip"
+                continue
+	fi
+
+	if [ $count -ne 0 ] && [ $done -eq $count ]; then
+		wait
+		echo "done [$count], exit"
+		exit 0
+	fi
+
+	RHVoice-test -q max -p marianna+slt -R 48000 -i $arg -o "$arg.mp3" &
+	
+	((++done))
+	# limit jobs
+	if (( $(($((++n)) % $maxjobs)) == 0 )) ; then
+		wait # wait until all have finished (not optimal, but most times good enough)
+		echo "done [$n:$#]"
+	fi
+}
 
 echo "running"
 
-for arg in "$@"
-do
-	if [[ $arg != *.mp3 ]]
-	then
-		RHVoice-test -q max -p marianna+slt -R 48000 -i $arg -o "$arg.mp3" &
+if [ $# -eq 0 ]; then
+	for arg in $(ls | sort -V)
+	do
+		do_mp3
+	done
+else
+	for arg in "$@"
+	do
+		do_mp3
+	done
+fi
 
-		# limit jobs
-		if (( $(($((++n)) % $maxjobs)) == 0 )) ; then
-			wait # wait until all have finished (not optimal, but most times good enough)
-			echo "done [$n:$#]"
-		fi
-	fi
-done
 wait
 echo "finish"
 
